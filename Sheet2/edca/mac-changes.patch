@@ -1,0 +1,178 @@
+diff --git a/src/veins/modules/mac/ieee80211p/Mac1609_4.cc b/src/veins/modules/mac/ieee80211p/Mac1609_4.cc
+index 27e0ff6f..6332598e 100644
+--- a/src/veins/modules/mac/ieee80211p/Mac1609_4.cc
++++ b/src/veins/modules/mac/ieee80211p/Mac1609_4.cc
+@@ -136,6 +136,10 @@ void Mac1609_4::initialize(int stage)
+         statsReceivedPackets = 0;
+         statsReceivedBroadcasts = 0;
+         statsSentPackets = 0;
++        statsSentPacketsVO = 0;
++        statsSentPacketsVI = 0;
++        statsSentPacketsBE = 0;
++        statsSentPacketsBK = 0;
+         statsSentAcks = 0;
+         statsTXRXLostPackets = 0;
+         statsSNIRLostPackets = 0;
+@@ -144,6 +148,10 @@ void Mac1609_4::initialize(int stage)
+         statsNumInternalContention = 0;
+         statsNumBackoff = 0;
+         statsSlotsBackoff = 0;
++        statsSlotsBackoffVO = 0;
++        statsSlotsBackoffVI = 0;
++        statsSlotsBackoffBE = 0;
++        statsSlotsBackoffBK = 0;
+         statsTotalBusyTime = 0;
+ 
+         idleChannel = true;
+@@ -350,7 +358,23 @@ void Mac1609_4::handleLowerControl(cMessage* msg)
+         handleRetransmit(lastAC);
+     }
+     else if (msg->getKind() == MacToPhyInterface::TX_OVER) {
+-
++        switch (lastAC) {
++        case AC_VO:
++            statsSentPacketsVO++;
++            break;
++        case AC_VI:
++            statsSentPacketsVI++;
++            break;
++        case AC_BE:
++            statsSentPacketsBE++;
++            break;
++        case AC_BK:
++            statsSentPacketsBK++;
++            break;
++        default:
++            throw new cRuntimeError("unknown user priority !");
++            break;
++        }
+         EV_TRACE << "Successfully transmitted a packet on " << lastAC << std::endl;
+ 
+         phy->setRadioState(Radio::RX);
+@@ -421,11 +445,19 @@ void Mac1609_4::finish()
+         statsNumInternalContention += p.second->statsNumInternalContention;
+         statsNumBackoff += p.second->statsNumBackoff;
+         statsSlotsBackoff += p.second->statsSlotsBackoff;
++        statsSlotsBackoffVO += p.second->statsSlotsBackoffVO;
++        statsSlotsBackoffVI += p.second->statsSlotsBackoffVI;
++        statsSlotsBackoffBE += p.second->statsSlotsBackoffBE;
++        statsSlotsBackoffBK += p.second->statsSlotsBackoffBK;
+     }
+ 
+     recordScalar("ReceivedUnicastPackets", statsReceivedPackets);
+     recordScalar("ReceivedBroadcasts", statsReceivedBroadcasts);
+     recordScalar("SentPackets", statsSentPackets);
++    recordScalar("SentPacketsVO", statsSentPacketsVO);
++    recordScalar("SentPacketsVI", statsSentPacketsVI);
++    recordScalar("SentPacketsBE", statsSentPacketsBE);
++    recordScalar("SentPacketsBK", statsSentPacketsBK);
+     recordScalar("SentAcknowledgements", statsSentAcks);
+     recordScalar("SNIRLostPackets", statsSNIRLostPackets);
+     recordScalar("RXTXLostPackets", statsTXRXLostPackets);
+@@ -434,6 +466,10 @@ void Mac1609_4::finish()
+     recordScalar("TooLittleTime", statsNumTooLittleTime);
+     recordScalar("TimesIntoBackoff", statsNumBackoff);
+     recordScalar("SlotsBackoff", statsSlotsBackoff);
++    recordScalar("SlotsBackoffVO", statsSlotsBackoffVO);
++    recordScalar("SlotsBackoffVI", statsSlotsBackoffVI);
++    recordScalar("SlotsBackoffBE", statsSlotsBackoffBE);
++    recordScalar("SlotsBackoffBK", statsSlotsBackoffBK);
+     recordScalar("NumInternalContention", statsNumInternalContention);
+     recordScalar("totalBusyTime", statsTotalBusyTime.dbl());
+ }
+@@ -794,6 +830,23 @@ void Mac1609_4::EDCA::backoff(t_access_category ac)
+ {
+     myQueues[ac].currentBackoff = owner->intuniform(0, myQueues[ac].cwCur);
+     statsSlotsBackoff += myQueues[ac].currentBackoff;
++    switch (ac) {
++    case AC_VO:
++        statsSlotsBackoffVO += myQueues[ac].currentBackoff;
++        break;
++    case AC_VI:
++        statsSlotsBackoffVI += myQueues[ac].currentBackoff;
++        break;
++    case AC_BE:
++        statsSlotsBackoffBE += myQueues[ac].currentBackoff;
++        break;
++    case AC_BK:
++        statsSlotsBackoffBK += myQueues[ac].currentBackoff;
++        break;
++    default:
++        throw new cRuntimeError("unknown user priority !");
++        break;
++    }
+     statsNumBackoff++;
+     EV_TRACE << "Going into Backoff because channel was busy when new packet arrived from upperLayer" << std::endl;
+ }
+@@ -816,6 +869,23 @@ void Mac1609_4::EDCA::postTransmit(t_access_category ac, BaseFrame1609_4* wsm, b
+         // post transmit backoff
+         myQueues[ac].currentBackoff = owner->intuniform(0, myQueues[ac].cwCur);
+         statsSlotsBackoff += myQueues[ac].currentBackoff;
++        switch (ac) {
++        case AC_VO:
++            statsSlotsBackoffVO += myQueues[ac].currentBackoff;
++            break;
++        case AC_VI:
++            statsSlotsBackoffVI += myQueues[ac].currentBackoff;
++            break;
++        case AC_BE:
++            statsSlotsBackoffBE += myQueues[ac].currentBackoff;
++            break;
++        case AC_BK:
++            statsSlotsBackoffBK += myQueues[ac].currentBackoff;
++            break;
++        default:
++            throw new cRuntimeError("unknown user priority !");
++            break;
++        }
+         statsNumBackoff++;
+         EV_TRACE << "Queue " << ac << " will go into post-transmit backoff for " << myQueues[ac].currentBackoff << " slots" << std::endl;
+     }
+@@ -829,6 +899,10 @@ Mac1609_4::EDCA::EDCA(cSimpleModule* owner, ChannelType channelType, int maxQueu
+     , statsNumInternalContention(0)
+     , statsNumBackoff(0)
+     , statsSlotsBackoff(0)
++    , statsSlotsBackoffVO(0)
++    , statsSlotsBackoffVI(0)
++    , statsSlotsBackoffBE(0)
++    , statsSlotsBackoffBK(0)
+ {
+ }
+ 
+diff --git a/src/veins/modules/mac/ieee80211p/Mac1609_4.h b/src/veins/modules/mac/ieee80211p/Mac1609_4.h
+index 24d39a30..89402976 100644
+--- a/src/veins/modules/mac/ieee80211p/Mac1609_4.h
++++ b/src/veins/modules/mac/ieee80211p/Mac1609_4.h
+@@ -128,6 +128,10 @@ public:
+         long statsNumInternalContention;
+         long statsNumBackoff;
+         long statsSlotsBackoff;
++        long statsSlotsBackoffVO;
++        long statsSlotsBackoffVI;
++        long statsSlotsBackoffBE;
++        long statsSlotsBackoffBK;
+ 
+         /** @brief Id for debug messages */
+         std::string myId;
+@@ -271,6 +275,10 @@ protected:
+     long statsReceivedPackets;
+     long statsReceivedBroadcasts;
+     long statsSentPackets;
++    long statsSentPacketsVO;
++    long statsSentPacketsVI;
++    long statsSentPacketsBE;
++    long statsSentPacketsBK;
+     long statsSentAcks;
+     long statsTXRXLostPackets;
+     long statsSNIRLostPackets;
+@@ -279,6 +287,10 @@ protected:
+     long statsNumInternalContention;
+     long statsNumBackoff;
+     long statsSlotsBackoff;
++    long statsSlotsBackoffVO;
++    long statsSlotsBackoffVI;
++    long statsSlotsBackoffBE;
++    long statsSlotsBackoffBK;
+     simtime_t statsTotalBusyTime;
+ 
+     /** @brief The power (in mW) to transmit with.*/
